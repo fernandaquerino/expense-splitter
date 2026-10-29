@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: expense_splitter_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: expense
+      POSTGRES_PASSWORD: expense
+      POSTGRES_DB: expense_splitter
+    ports:
+      # Host port is configurable (DB_PORT) to avoid clashing with a local
+      # Postgres already bound to 5432; container port stays 5432.
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - expense_splitter_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expense -d expense_splitter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  expense_splitter_pgdata:
