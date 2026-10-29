@@ -1,0 +1,97 @@
+// Expense Splitter — Prisma schema
+//
+// Money is ALWAYS stored as integer minor units (cents for USD/EUR, whole
+// yen for JPY, etc.). No floating-point columns are used for monetary values.
+// See src/domain/money.ts and src/domain/currency.ts for the domain types
+// that give these integers meaning.
+//
+// MVP scope: equal splits, a single currency per group, no settlements.
+// The SplitType enum is intentionally extensible for future split types.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SplitType {
+  EQUAL
+  // Future: EXACT, PERCENTAGE, SHARES
+}
+
+model Group {
+  id           String   @id @default(cuid())
+  name         String
+  description  String   @default("")
+  /// ISO 4217 currency code; the currency every expense in this group is recorded in.
+  currencyCode String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members  Member[]
+  expenses Expense[]
+
+  @@index([createdAt])
+  @@map("groups")
+}
+
+model Member {
+  id          String   @id @default(cuid())
+  groupId     String
+  name        String
+  /// Optional — null for "name-only" members added without a registered account.
+  email       String?
+  /// Hex color for the member's avatar circle.
+  avatarColor String
+  createdAt   DateTime @default(now())
+
+  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  expensesPaid  Expense[]      @relation("ExpensePayer")
+  expenseSplits ExpenseSplit[]
+
+  @@index([groupId])
+  @@map("members")
+}
+
+model Expense {
+  id           String    @id @default(cuid())
+  groupId      String
+  description  String
+  /// Amount in integer minor units of `currencyCode`.
+  amountMinor  Int
+  /// ISO 4217 currency code. In the MVP this always equals the group currency.
+  currencyCode String
+  date         DateTime
+  category     String
+  payerId      String
+  splitType    SplitType @default(EQUAL)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  group  Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer  Member         @relation("ExpensePayer", fields: [payerId], references: [id], onDelete: Restrict)
+  splits ExpenseSplit[]
+
+  @@index([groupId, date])
+  @@index([groupId, category])
+  @@map("expenses")
+}
+
+model ExpenseSplit {
+  id         String @id @default(cuid())
+  expenseId  String
+  memberId   String
+  /// This member's share of the expense, in integer minor units. Splits sum to the expense amount.
+  shareMinor Int
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member  Member  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseId, memberId])
+  @@index([memberId])
+  @@map("expense_splits")
+}
