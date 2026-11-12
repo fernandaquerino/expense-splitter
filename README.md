@@ -1,163 +1,329 @@
 # Expense Splitter
 
-Split shared costs with friends, roommates, and travel companions. Flexible split types, multi-currency support, and clear settlement tracking keep everyone square.
+A web app for splitting shared costs inside a group: trips, shared households,
+office lunches or one-off collections. Add the people, log who paid what, and
+see at any moment how much each person owes or is owed.
 
-![Preview of Expense Splitter](./preview.jpg)
+This repository contains the **initial MVP**: a full-stack app with a NestJS +
+Prisma + PostgreSQL API and a Next.js (App Router) frontend. It is my solution
+to the [Expense Splitter product challenge](https://www.frontendmentor.io/challenges/expense-splitter)
+on Frontend Mentor; the architecture, backend and frontend code are my own.
 
-*This is a design concept image, not the intended design. There's no Figma file, so the design decisions are yours.*
+**Value proposition:** _Split expenses. Settle up. Stay friends._
 
-## The challenge
+**Who it's for:** small groups of people who share costs and want clear,
+exact balances without spreadsheets.
 
-Expense Splitter is a **Product Challenge** on [Frontend Mentor](https://www.frontendmentor.io). There's no Figma file, so you make the design decisions. You ship a real, deployed product with a database, authentication, and a live currency-conversion API. The result is a portfolio piece that shows how you think as much as what you can build.
+**Status:** MVP working locally; not deployed yet. Next steps are listed in the
+[Roadmap](#roadmap).
 
-### Four pillars
+---
 
-| Pillar | What it means for Expense Splitter |
-|--------|----------------------------|
-| **Product thinking** | You design the expense entry flow, the group dashboard, and how balances, debts, and settlements are communicated clearly. |
-| **Design taste & craft** | The brand kit gives you colors, type, and spacing. The layouts, balance displays, and settlement flows are yours. |
-| **AI collaboration** | The project includes AI context files (`AGENTS.md`, `CLAUDE.md`) that give tools like Claude full project context. Lean into AI across planning, building, and polishing. |
-| **Shipping real products** | Deploy to a live URL. Real database, real auth, and a live exchange-rate API. The project works end-to-end for any visitor. |
+## What's in the MVP
 
-## What you're building
+Implemented end-to-end with persistent data:
 
-A shared expense tool for groups: roommates, trip companions, friend groups. You log who paid for what, split costs flexibly, and give everyone a clear path to settling up.
+1. **Responsive dashboard** — group summaries (total spent, members, expense
+   count) and a cross-group recent-expenses feed, with sidebar / mobile-drawer
+   navigation.
+2. **Guest mode** — the database is seeded with 5 realistic groups (a JPY Japan
+   trip, a USD roommate household, an office lunch crew, a one-off birthday
+   collection, and a camping weekend), their members (including a **name-only**
+   member with no account), and ~40 expenses.
+3. **Groups** — create, edit, and list.
+4. **Members** — add / edit / remove, including members without accounts;
+   removal is blocked while a member is part of any expense.
+5. **Expenses** — create with description, amount, date, category, payer, and
+   participants; edit and delete.
+6. **Equal splitting** — deterministic integer-minor-unit allocation; leftover
+   minor units go to the payer; shares always sum to the total.
+7. **Expense history & detail pages** — reverse-chronological list and a full
+   per-expense breakdown.
+8. **Group totals & per-member balances** — derived from persisted expenses;
+   balances always sum to zero.
+9. **Filtering** — by category and by date range (combinable), via URL query
+   params.
+10. **Empty / loading / validation / error states** throughout.
+11. **Automated tests** — monetary calculations and API endpoint logic.
 
-- **Group management**: create groups, add members (including people without accounts), and set a default currency
-- **Flexible splits**: equal, exact amounts, percentages, and shares, with validation and clean rounding
-- **Multi-currency support**: log expenses in any currency with real exchange rates, converted to the group's default
-- **Balances & settlements**: see who owes whom, suggest pairwise payments, and handle partial settlements
-- **Categories & filtering**: organize spending and break it down by category, date, and member
-- **Landing page**: a professional entry point with guest access
-- **Guest experience**: a fully explorable demo, no account required
+Plus: light/dark themes (OS preference + persisted manual toggle, no flash),
+WCAG-minded markup (landmarks, labels, focus-visible, keyboard-operable
+dialogs, color-plus-icon-plus-label balance direction), and a custom favicon.
 
-### The guest experience
+### Intentionally deferred (future iterations)
 
-When you share this project, whether in your portfolio, a job application, or a social post, the person clicking your link isn't going to create an account. Guest mode is what lets them see your work instead of a login wall.
+Exact / percentage / shares splits · live currency conversion & rate snapshots ·
+multi-currency group accounting · settlements, partial settlements, reversal &
+audit · debt simplification · advanced analytics · full auth / registration ·
+idempotency & concurrency handling.
 
-Your landing page includes a "Try as Guest" button. Guests land on a dashboard pre-loaded with 5 groups and 43 expenses: a two-week trip to Japan with mixed-currency spending (USD, JPY, EUR), a roommate household with recurring rent, an office lunch crew, a one-off birthday-gift collection, and a camping weekend. Mixed currencies, every split type, and a mix of settled and outstanding debts are all there to explore, so a visitor sees the product working within seconds.
+> **Scope honesty:** because multi-currency accounting and advanced splits are
+> deferred, each group uses a **single currency** and **equal splits only**. The
+> guest seed is authored to match (no silently-incorrect placeholder math). A
+> JPY group exercises zero-decimal rounding; the others are USD.
 
-## Project structure
+---
+
+## Architecture
 
 ```
 expense-splitter/
-├── spec/
-│   ├── product-definition.md      # What, who, why
-│   ├── core-requirements.md       # 15 features: 11 core + 4 stretch
-│   ├── design-challenges.md       # 3 features YOU design
-│   ├── technical-requirements.md  # Database, auth, currency API, deployment, performance
-│   └── differentiators.md         # 4 enhancements (pick 1-2)
-├── guidance/
-│   ├── brand-kit.md               # Colors, typography, spacing, icons, mood
-│   ├── patterns.md                # UI/UX do's and don'ts
-│   └── accessibility.md           # WCAG checklist
-├── starter/
-│   ├── tokens.css                 # CSS custom properties
-│   └── tailwind.css               # Optional Tailwind v4 config
-├── data/
-│   ├── sample-groups.json         # 5 groups, 43 expenses, intentional edge cases
-│   └── README.md                  # Data edge case documentation
-├── .env.example                   # Environment variable template
-├── AGENTS.md                      # AI collaboration context
-├── CLAUDE.md                      # Points to AGENTS.md
-└── README-template.md             # Template for your solution README
+├── apps/
+│   ├── api/                 # NestJS REST API
+│   │   ├── prisma/          # schema, SQL migration, guest seed
+│   │   └── src/
+│   │       ├── domain/      # pure business rules (no I/O)
+│   │       │   ├── money.ts, currency.ts, category.ts
+│   │       │   ├── split/   # equal-split allocator
+│   │       │   └── balance/ # balance & totals derivation
+│   │       ├── groups/      # controller · service · repository · dto
+│   │       ├── expenses/    # controller · service · repository · dto
+│   │       ├── meta/        # currencies, categories, health
+│   │       ├── prisma/      # PrismaService (data access)
+│   │       └── common/      # view models, filters, avatar palette
+│   └── web/                 # Next.js App Router frontend
+│       └── src/
+│           ├── app/         # routes (landing, dashboard, groups, expenses)
+│           ├── components/  # ui, layout, groups, expenses, theme
+│           └── lib/         # api client, types, money/split mirrors, format
+├── docker-compose.yml       # PostgreSQL 16
+└── .env.example
 ```
 
-## Getting started
+**Backend principles**
 
-1. **Read the spec.** Start with `spec/product-definition.md`, then `core-requirements.md`. Understand what you're building before you write code.
+- **Money is always integer minor units** (cents, whole yen). No float columns;
+  parsing goes string → integer to avoid binary rounding drift.
+- **Layer separation:** controllers (HTTP) → services (orchestration + rules) →
+  repositories (Prisma) → database models. DTOs validate input with
+  `class-validator`.
+- **Business rules live in domain services** (`SplitService`, `BalanceService`)
+  that are pure and independently unit-tested.
+- **Transactional writes:** an expense and its split rows are created/updated in
+  a single Prisma transaction, so an expense can never persist without a
+  complete, balanced set of splits.
+- **Explicit domain types** for currencies, categories, splits, and balances.
 
-2. **Review the brand kit.** `guidance/brand-kit.md` gives you the visual foundation: colors, type, and spacing. Use it and the preview image as your starting point. Or, if you have a clear design vision of your own, create your own brand kit and go in a different direction. The starter CSS tokens and optional Tailwind config are ready to use.
+**Equal-split allocation rule.** `base = floor(total / N)`,
+`remainder = total − base·N`. The first `remainder` participants each get one
+extra minor unit, ordered payer-first. Deterministic and exact: shares sum to
+the total, and because balances are integer math their sum is exactly zero.
 
-3. **Explore the patterns.** `guidance/patterns.md` provides UI/UX do's and don'ts that help you make strong design decisions without a Figma file.
+---
 
-4. **Choose your stack.** This challenge is framework-agnostic: Next.js, Nuxt, SvelteKit, Remix, Astro, or whatever you're most productive with. The recommended path is full-stack (database plus auth), but there's a **frontend-only alternative** if you want to focus on UI/UX and frontend engineering. See `spec/technical-requirements.md` for details. Either way, the currency-conversion API integration stays.
+## Tech stack
 
-5. **Set up your AI workflow.** This project is designed for AI collaboration. `AGENTS.md` and `CLAUDE.md` give AI tools full context about the project: specs, guidance, and collaboration approach. We recommend working with AI across every phase, from planning to building to polishing.
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS v4 ·
+NestJS 10 · Prisma 5 · PostgreSQL 16 · class-validator · Jest + Supertest (API) ·
+Vitest + React Testing Library (web). Manrope and IBM Plex Mono are bundled
+locally through Fontsource, so no Google Fonts request happens at runtime.
 
-6. **Pick your differentiators.** Read `spec/differentiators.md` and choose 1-2 that match your interests. These are what make the project _yours_.
+---
 
-7. **Start building.** Begin with the foundation (auth, database, core data model), then layer in features. The core-requirements spec is your guide. Core features give you a solid product; stretch features take it to the next level.
+## Local setup
 
-8. **Document as you go.** Use `README-template.md` for your solution README. Record design decisions, technical trade-offs, and lessons learned as they happen, not after.
+**Prerequisites:** Node ≥ 20, Docker (for PostgreSQL), npm.
 
-## Working with AI
+```bash
+# 1. Install all workspaces (also runs `prisma generate` for the API)
+npm install
 
-Product Challenges are designed for AI collaboration. The `AGENTS.md` and `CLAUDE.md` files give AI tools like Claude, Cursor, and Copilot full project context, including the spec, brand kit, and collaboration guidelines. Load them at the start of each session.
+# 2. Environment files
+cp .env.example .env
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env.local
 
-Lean on AI for implementation, but don't accept everything it gives you. The design decisions are yours, and so is the code quality. Review what gets generated, understand it, and make sure it's something you'd be happy putting your name on. The 3 design-it-yourself features (Expense Entry UX, Group Dashboard Design, Settlement Flow Design) are where your product thinking matters most.
+# 3. Start PostgreSQL
+npm run db:up
 
-## Your solution repo
+# 4. Apply migrations and seed the guest data
+npm run db:migrate
+npm run db:seed
 
-The `.gitignore` is pre-configured to exclude challenge reference files (`spec/`, `guidance/`, `AGENTS.md`, etc.) from your solution repo. These files are your development reference. They stay on your machine for AI sessions and planning, but they don't belong in the finished product.
+# 5. Run both apps (API on :3001, web on :3000)
+npm run dev
+```
 
-Your public repo should contain:
+Open http://localhost:3000 and click **Try as guest**.
 
-- Your application code
-- Your completed README (rename `README-template.md` → `README.md`)
-- The sample data files (needed for the guest experience)
-- The starter tokens (consumed by your build)
+### Useful scripts (run from the repo root)
 
-This is how real products work: you reference the spec during development, you ship the product.
+| Script | What it does |
+|--------|--------------|
+| `npm run dev` | API + web together |
+| `npm run build` | Build both apps |
+| `npm run typecheck` | `tsc --noEmit` in both |
+| `npm run lint` | ESLint in both |
+| `npm run test` | API (Jest) + web (Vitest) unit/integration tests |
+| `npm run db:up` / `db:down` | Start / stop PostgreSQL |
+| `npm run db:migrate` | `prisma migrate deploy` |
+| `npm run db:seed` | Seed the 5 guest groups |
 
-## Learning outcomes
+API-only e2e (requires the DB to be up and migrated):
 
-By completing this challenge, you'll have demonstrated:
+```bash
+npm run test:e2e --workspace apps/api
+```
 
-- Building a full product from a spec, rather than following a tutorial
-- Making genuine product and design decisions with documented reasoning
-- Shipping a deployed app with a real database, authentication, and a live external API
-- Modeling group expenses, flexible split types, and multi-currency balances correctly
-- Handling real financial edge cases: rounding, currency conversion, and settlement math
-- Creating a compelling guest experience with realistic, pre-loaded data
-- Writing a professional README that showcases your thinking process
+---
 
-## Key design moments
+## API reference
 
-These screens are where your design taste will be most visible:
+Base URL: `http://localhost:3001/api`. All money fields are integer minor units
+of the entity's `currencyCode`.
 
-1. **Expense entry.** The most frequent action in the app. The "fast path" for the common case and the transition to advanced split types define how the product feels day to day.
-2. **Group dashboard.** The home base for each group. The information hierarchy (personal balance, group summary, recent expenses, what to settle) shapes the whole experience.
-3. **Settlement flow.** The payoff moment. Making "who owes whom" clear, trustworthy, and satisfying to resolve is where the product earns its keep.
-4. **Landing page.** The first impression. It should immediately communicate what the product does and why it matters.
+### Meta
 
-## Deploying your project
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Liveness check |
+| `GET` | `/meta/currencies` | Supported currencies (code, decimals, symbol, name) |
+| `GET` | `/meta/categories` | Predefined expense categories |
 
-Product Challenges require a live, publicly accessible URL. Recommended hosts:
+### Groups
 
-- [Vercel](https://vercel.com/)
-- [Netlify](https://www.netlify.com/)
-- [Render](https://render.com/)
-- [Fly.io](https://fly.io/)
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/groups` | List groups with counts & total spent |
+| `POST` | `/groups` | Create a group (optionally with initial members) |
+| `GET` | `/groups/:id` | Group detail: members, totals, per-member balances |
+| `PATCH` | `/groups/:id` | Update name / description / currency |
+| `DELETE` | `/groups/:id` | Delete a group (only if it has no expenses) |
 
-Make sure your environment variables are configured correctly and no secrets are exposed, especially your currency API key. Test your deployed URL in an incognito window before submitting, especially the guest experience.
+`POST /groups` body:
 
-For more guidance, see our [hosting guide](https://www.frontendmentor.io/guides/hosting-your-solution).
+```json
+{
+  "name": "Trip to Japan",
+  "description": "Two weeks in Japan",
+  "currencyCode": "JPY",
+  "members": [{ "name": "Alex", "email": "alex@example.com" }, { "name": "Dev" }]
+}
+```
 
-## Submitting your solution
+### Members
 
-Submit your solution on the platform for the rest of the community to see. Follow our [guide to submitting solutions](https://www.frontendmentor.io/guides/how-to-submit-solutions) for the full process.
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/groups/:id/members` | Add a member (email optional = name-only) |
+| `PATCH` | `/groups/:id/members/:memberId` | Edit a member |
+| `DELETE` | `/groups/:id/members/:memberId` | Remove (blocked if in any expense) |
 
-When submitting, you'll need:
+### Expenses
 
-- **Live site URL.** Submit the URL to your guest experience (e.g., `your-app.vercel.app/guest`), not the landing page. This makes sure our solution reporters analyze your product code rather than the homepage. On the frontend-only path there's no separate guest route, so submit your app's dashboard URL instead. Test in incognito first.
-- **Repository URL.** A public repo with your solution code and completed README.
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/groups/:id/expenses` | List (reverse-chronological), filterable |
+| `POST` | `/groups/:id/expenses` | Create (amount in major units as a string) |
+| `GET` | `/groups/:id/expenses/:expenseId` | Expense detail with split breakdown |
+| `PATCH` | `/groups/:id/expenses/:expenseId` | Update (splits recomputed) |
+| `DELETE` | `/groups/:id/expenses/:expenseId` | Delete |
 
-For your retrospective, Product Challenges give you a lot to write about: design decisions, AI collaboration, technical trade-offs. Be specific about what you're proud of and where you'd like feedback. See our [guide to writing effective retrospectives](https://www.frontendmentor.io/guides/write-an-effective-retrospective) for tips.
+Query params on list: `category`, `from` (ISO), `to` (ISO), `payerId`.
 
-## Sharing your solution
+`POST /groups/:id/expenses` body:
 
-Product Challenges create portfolio pieces worth sharing beyond the platform:
+```json
+{
+  "description": "Izakaya dinner",
+  "amount": "21600",
+  "date": "2024-03-20T20:00:00Z",
+  "category": "Food & Drink",
+  "payerId": "<memberId>",
+  "participantIds": ["<memberId>", "<memberId>"],
+  "notes": "optional"
+}
+```
 
-1. Share your solution page in the **#finished-projects** channel of our [community](https://www.frontendmentor.io/community).
-2. Post on LinkedIn or X, including both your live URL and repo link. The guest experience means anyone clicking your link sees the product immediately.
-3. Add it to your portfolio. See our [guide to using challenges in your portfolio](https://www.frontendmentor.io/guides/use-challenges-in-your-portfolio).
-4. Blog about your experience. The design decisions, AI collaboration, and technical challenges make for compelling content. Great platforms to write on are [dev.to](https://dev.to/), [Hashnode](https://hashnode.com/), and [CodeNewbie](https://community.codenewbie.org/).
+Amount is a **string in major units** (e.g. `"42.50"`, or `"21600"` for JPY);
+the server converts it to minor units using the group currency and rejects
+values with too many decimal places. Errors return clean JSON
+(`{ statusCode, message, error }`); validation errors are `400`, missing
+records `404`, rule violations `409`.
 
-## Questions?
+---
 
-If anything in the spec is unclear or you want to discuss the challenge, join our [Discord community](https://www.frontendmentor.io/community).
+## Design decisions (challenge write-up)
 
-## Got feedback for us?
+**Expense entry UX.** A single adaptive form with the amount as the prominent
+first field. Smart defaults (today's date, group currency, everyone selected,
+last category) make the common case — one payer, split evenly — the fast path.
+Payer is a single-select avatar radiogroup; participants are multi-select avatar
+chips with a live "N of M selected" count. A **live split preview** shows each
+person's exact share as you type, using the same allocator the server persists —
+so what you see is what's saved.
 
-We love receiving feedback! If you have anything you'd like to mention, please email hi[at]frontendmentor[dot]io.
+**Group dashboard.** Information hierarchy: on mobile the balance summary sits
+above the expense list (balances first in the DOM); on desktop it moves to a
+right-hand pane so the expense history leads. Balances use color **and** an
+icon, a +/− sign, and a text label so direction never depends on color alone.
+The all-settled state is a positive moment, not a bare zero.
+
+**Settlement flow.** Settlements are deferred in this MVP, so the app presents
+per-member net balances clearly rather than implementing placeholder settlement
+math that could mislead. The balance panel is built to extend into pairwise
+settlements next.
+
+---
+
+## Testing
+
+- **API (Jest):** `money` (currency conversion, rounding, formatting),
+  `SplitService` (the README edge cases — $24.50/4, $142.37/3, $34.99/5,
+  ¥4,850/4 — plus the sum-to-total invariant and payer-first leftover rule),
+  `BalanceService` (zero-sum invariant), and service-level tests for
+  `ExpensesService` / `GroupsService` with mocked repositories (validation,
+  conversion, allocation, mapping — no DB needed). An opt-in e2e suite
+  (`test:e2e`) exercises the real HTTP + Prisma stack.
+- **Web (Vitest + RTL):** client money/split mirrors (kept equivalent to the
+  API), currency formatting, and a `BalancePanel` component test (direction
+  labels, name-only badge, all-settled state).
+
+See [VERIFICATION.md](VERIFICATION.md) for which commands have been run and
+their status.
+
+---
+
+## Accessibility & theming
+
+Semantic landmarks (`nav`/`main`/`aside`/`header`), a skip link, visible
+`:focus-visible` rings, keyboard-operable native `<dialog>` modals (focus trap +
+restore), labelled form fields, `aria-current` navigation, tabular monospace
+figures, and `prefers-reduced-motion` support. Light/dark via the provided
+tokens, honoring `prefers-color-scheme` with a persisted manual toggle and a
+no-flash inline theme script.
+
+---
+
+## Roadmap
+
+The MVP deliberately keeps each group to one currency and equal splits. Planned
+work, roughly in order:
+
+- [ ] **Deploy** the API and a managed PostgreSQL instance, then the web app, and
+      add the live URL here.
+- [ ] **Exact, percentage and shares splits**, reusing the integer minor-unit
+      allocator and its sum-to-total invariant.
+- [ ] **Settlements**: record payments between members, partial settlements and
+      reversal, with an audit trail.
+- [ ] **Debt simplification**: suggest the minimum set of transfers that settles
+      a group.
+- [ ] **Multi-currency groups**: per-expense currency with an exchange-rate
+      snapshot stored at creation time.
+- [ ] **Idempotent writes** for expense creation and safe concurrent edits.
+- [ ] **Accounts and auth** to replace the guest-only mode.
+- [ ] **Dependency upgrades**: NestJS 10 → current major and Next.js 15 → 16
+      (several transitive advisories are only fixed in those majors), plus
+      migrating `next lint` to the ESLint CLI.
+- [ ] **CI**: typecheck, lint, unit tests and the e2e suite against a PostgreSQL
+      service container on every push.
+
+---
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE).
+
+The challenge materials in `spec/`, `guidance/`, `starter/`, `data/` and
+`docs/frontend-mentor/` come from Frontend Mentor and are included for
+reference only; they are not covered by the MIT license.
